@@ -20,3 +20,10 @@ sounddevice
 #   pip install numpy
 #
 # Model size can be overridden: export NANO_CLAUDE_WHISPER_MODEL=small
+
+# Strategy & TUI Dependencies
+networkx>=3.0
+numpy>=1.24.0
+scipy>=1.10.0
+pydantic>=2.0.0
+textual>=0.40.0

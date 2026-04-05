@@ -1,0 +1,3 @@
+{
+  "tests/test_task_dag_or.py::TestTaskDagOr": true
+}
