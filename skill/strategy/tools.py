@@ -18,6 +18,8 @@ def execute_strategic_options(**kwargs) -> str:
         approved_context = cast(DecisionContext, require_human_approval_via_tui(DecisionContext, kwargs))
     except InterruptedError as error:
         return f"Action aborted by human: {error}"
+    except Exception as error:
+        return f"Action failed in HITL checkpoint: {error}"
 
     rows: list[tuple[str, str, float, float, float, float]] = []
     for option in approved_context.options:

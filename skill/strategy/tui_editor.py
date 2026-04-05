@@ -8,6 +8,13 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 try:
+    _rich_markup = importlib.import_module("rich.markup")
+    _escape_markup = _rich_markup.escape
+except Exception:  # pragma: no cover
+    def _escape_markup(text: str) -> str:
+        return text
+
+try:
     _textual_app = importlib.import_module("textual.app")
     _textual_binding = importlib.import_module("textual.binding")
     _textual_widgets = importlib.import_module("textual.widgets")
@@ -51,19 +58,27 @@ class JSONReviewApp(App):  # type: ignore[misc, valid-type]
     def action_quit_app(self) -> None:
         self.exit(None)
 
+    def _notify_error(self, message: str, title: str = "校验失败", timeout: int = 6) -> None:
+        safe = _escape_markup(message)
+        try:
+            self.notify(safe, title=title, severity="error", timeout=timeout)
+        except Exception:
+            # Fallback: never crash UI because of notification formatting.
+            self.notify("参数不合法，请修正后重试。", title=title, severity="error", timeout=timeout)
+
     def action_approve(self) -> None:
         text = self.query_one("#editor", TextArea).text
 
         try:
             json.loads(text)
         except json.JSONDecodeError as error:
-            self.notify(f"JSON 语法错误: {error}", title="语法错误", severity="error", timeout=5)
+            self._notify_error(f"JSON 语法错误: {error}", title="语法错误", timeout=5)
             return
 
         try:
             validated_obj = self.model_class.model_validate_json(text)
         except ValidationError as error:
-            self.notify(f"参数越界或缺失: {error}", title="校验失败", severity="error", timeout=6)
+            self._notify_error(f"参数越界或缺失: {error}", title="校验失败", timeout=6)
             return
 
         self.notify("校验通过，放行计算引擎。", severity="success", timeout=2)

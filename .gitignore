@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+.env
+debug_payload.json
