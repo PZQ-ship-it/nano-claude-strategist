@@ -100,6 +100,7 @@ def execute_cooperation_synergy(**kwargs) -> str:
         "## Cooperation Synergy Evaluation",
         "",
         f"Context: {approved_context.rationale}",
+        f"Proposed project rationale: {approved_context.proposed_project_rationale}",
         f"Cooperation gross value: {approved_context.synergy_value:.2f}",
         f"Cooperation cost: {approved_context.cooperation_cost:.2f}",
         f"Net cooperative value: {coop_total:.2f}",

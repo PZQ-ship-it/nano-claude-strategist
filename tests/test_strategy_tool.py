@@ -34,6 +34,17 @@ class TestStrategySchemas:
                 estimated_cost=20.0,
             )
 
+    def test_cooperation_context_requires_project_rationale(self):
+        with pytest.raises(ValueError, match="proposed_project_rationale"):
+            CooperationContext(
+                players=["A", "B"],
+                standalone_values={"A": 10.0, "B": 20.0},
+                synergy_value=50.0,
+                cooperation_cost=5.0,
+                rationale="协作背景",
+                proposed_project_rationale="   ",
+            )
+
 
 @pytest.mark.skipif(not HAS_PYDANTIC, reason="pydantic is required for strategy tool tests")
 class TestStrategicTool:
@@ -118,6 +129,7 @@ class TestStrategicTool:
             "synergy_value": 260.0,
             "cooperation_cost": 20.0,
             "rationale": "甲方有渠道，乙方有技术。",
+            "proposed_project_rationale": "甲方负责渠道获客，乙方负责产品交付，联合做企业定制服务。",
         }
 
         def _approve(_model_class, initial_data):
@@ -127,6 +139,7 @@ class TestStrategicTool:
 
         result = strategy_tools.execute_cooperation_synergy(**payload)
         assert result.startswith("## Cooperation Synergy Evaluation")
+        assert "Proposed project rationale" in result
         assert "| Participant | Standalone Baseline | Shapley Allocation | Allocation Ratio |" in result
         assert "| 甲方 |" in result
         assert "| 乙方 |" in result

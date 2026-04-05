@@ -195,6 +195,75 @@ TOOL_SCHEMAS = [
         },
     },
     {
+        "name": "UPRuleList",
+        "description": "查看当前通用效用点数（UP）映射规则（含默认值与用户覆盖值）。",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "UPRuleSet",
+        "description": "新增或更新一条通用效用点数（UP）映射规则。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "key": {"type": "string", "description": "规则键，如 hour_saved"},
+                "value": {"type": "number", "description": "该规则对应的 UP 数值"},
+            },
+            "required": ["key", "value"],
+        },
+    },
+    {
+        "name": "UPRuleDelete",
+        "description": "删除一条用户自定义 UP 规则覆盖（默认规则不可被删除）。",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "key": {"type": "string", "description": "要删除的规则键"},
+            },
+            "required": ["key"],
+        },
+    },
+    {
+        "name": "UPRuleReset",
+        "description": "清空所有用户自定义 UP 规则，恢复默认映射。",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "batch_analyze_and_schedule_tasks",
+        "description": (
+            "当用户倾倒一批日常待办、杂事和截止时间，不知道先做什么时调用。"
+            "将任务批量构造成 DAG，并输出优化后的执行顺序。"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "description": {"type": "string"},
+                            "expected_value": {"type": "number"},
+                            "duration_hours": {"type": "number"},
+                            "deadline_timestamp": {"type": ["number", "null"]},
+                            "dependencies": {"type": "array", "items": {"type": "string"}},
+                        },
+                        "required": ["title", "description", "expected_value", "duration_hours"],
+                    },
+                },
+            },
+            "required": ["tasks"],
+        },
+    },
+    {
         "name": "evaluate_strategic_options",
         "description": (
             "当面临多方案评估、战略取舍或商业预测请求时，绝对禁止直接给出武断结论。"
@@ -212,6 +281,7 @@ TOOL_SCHEMAS = [
                             "option_name": {"type": "string"},
                             "success_prob": {
                                 "type": "object",
+                                "description": "成功率三点估算，范围 [0,1]",
                                 "properties": {
                                     "rationale": {"type": "string"},
                                     "min_val": {"type": "number"},
@@ -222,6 +292,7 @@ TOOL_SCHEMAS = [
                             },
                             "expected_revenue": {
                                 "type": "object",
+                                "description": "期望综合收益三点估算（可使用通用效用点数 UP）",
                                 "properties": {
                                     "rationale": {"type": "string"},
                                     "min_val": {"type": "number"},
@@ -230,7 +301,10 @@ TOOL_SCHEMAS = [
                                 },
                                 "required": ["rationale", "min_val", "mode_val", "max_val"],
                             },
-                            "estimated_cost": {"type": "number"},
+                            "estimated_cost": {
+                                "type": "number",
+                                "description": "综合成本（可包含时间/精力/机会成本的 UP 折算）",
+                            },
                         },
                         "required": ["option_name", "success_prob", "expected_revenue", "estimated_cost"],
                     },
@@ -256,14 +330,25 @@ TOOL_SCHEMAS = [
                 },
                 "standalone_values": {
                     "type": "object",
-                    "description": "每个参与方单干可获得的价值",
+                    "description": "每个参与方单干可获得的价值（通用效用点数，UP）",
                     "additionalProperties": {"type": "number"},
                 },
-                "synergy_value": {"type": "number", "description": "合作产生的总价值（毛值）"},
+                "synergy_value": {"type": "number", "description": "合作产生的总价值（毛值，UP）"},
                 "cooperation_cost": {"type": "number", "description": "合作实施总成本"},
                 "rationale": {"type": "string", "description": "协作背景与价值来源说明"},
+                "proposed_project_rationale": {
+                    "type": "string",
+                    "description": "基于双方资源与能力互补性，推演出的具体合作项目或商业模式脑暴过程",
+                },
             },
-            "required": ["players", "standalone_values", "synergy_value", "cooperation_cost", "rationale"],
+            "required": [
+                "players",
+                "standalone_values",
+                "synergy_value",
+                "cooperation_cost",
+                "rationale",
+                "proposed_project_rationale",
+            ],
         },
     },
     {
@@ -1134,6 +1219,10 @@ except Exception as _plugin_err:
 # ── Task tools (TaskCreate, TaskUpdate, TaskGet, TaskList) ─────────────────────
 # task/tools.py registers all four tools into the central registry on import.
 import task.tools as _task_tools  # noqa: F401
+
+# ── Utility Points tools (UPRuleList, UPRuleSet, UPRuleDelete, UPRuleReset) ──
+# utility_points/tools.py registers UP mapping management tools on import.
+import utility_points.tools as _up_tools  # noqa: F401
 
 # ── Strategy tools (evaluate_strategic_options / evaluate_cooperation_synergy) ──
 # skill/strategy/tools.py registers both strategy tools on import.

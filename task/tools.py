@@ -179,6 +179,49 @@ _TASK_LIST_SCHEMA = {
     },
 }
 
+_TASK_BATCH_ANALYZE_SCHEMA = {
+    "name": "batch_analyze_and_schedule_tasks",
+    "description": (
+        "当用户用自然语言陈述一堆日常杂事、待办和截止时间，不知道先做什么时调用。"
+        "将输入批量拆解为带依赖关系的 DAG 任务，并基于运筹学常识估算 EV 与耗时后排序。"
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "tasks": {
+                "type": "array",
+                "description": "任务列表，每个元素由大模型估算 EV/耗时/依赖后给出",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "任务标题（用于依赖映射）"},
+                        "description": {"type": "string", "description": "任务细节说明"},
+                        "expected_value": {
+                            "type": "number",
+                            "description": "预估收益（1-1000）",
+                        },
+                        "duration_hours": {
+                            "type": "number",
+                            "description": "预估耗时（小时）",
+                        },
+                        "deadline_timestamp": {
+                            "type": ["number", "null"],
+                            "description": "若提及截止时间则转换为 Unix 时间戳，否则为 null",
+                        },
+                        "dependencies": {
+                            "type": "array",
+                            "description": "前置任务标题列表（title，而非 task_id）",
+                            "items": {"type": "string"},
+                        },
+                    },
+                    "required": ["title", "description", "expected_value", "duration_hours"],
+                },
+            },
+        },
+        "required": ["tasks"],
+    },
+}
+
 
 # ── Implementations ────────────────────────────────────────────────────────────
 
@@ -351,6 +394,98 @@ def _task_list() -> str:
     return "\n".join(lines)
 
 
+def _normalize_title(title: str) -> str:
+    return " ".join(str(title).strip().split()).lower()
+
+
+def _batch_analyze_and_schedule_tasks(tasks: list[dict[str, Any]]) -> str:
+    if not tasks:
+        return "Error: tasks 不能为空。"
+
+    normalized_titles: dict[str, str] = {}
+    duplicate_titles: list[str] = []
+    for item in tasks:
+        title = str(item.get("title", "")).strip()
+        if not title:
+            return "Error: 检测到空 title，无法构建 title -> task_id 映射。"
+        normalized = _normalize_title(title)
+        if normalized in normalized_titles:
+            duplicate_titles.append(title)
+        else:
+            normalized_titles[normalized] = title
+
+    if duplicate_titles:
+        dup = ", ".join(duplicate_titles)
+        return f"Error: 检测到重复 title（忽略大小写与多空格）：{dup}"
+
+    created_items: list[tuple[str, str, list[str]]] = []
+    title_to_task_id: dict[str, str] = {}
+
+    for item in tasks:
+        title = str(item.get("title", "")).strip()
+        description = str(item.get("description", "")).strip()
+        expected_value = float(item.get("expected_value", 100.0))
+        duration_hours = float(item.get("duration_hours", 1.0))
+
+        raw_deadline = item.get("deadline_timestamp")
+        deadline_timestamp = float(raw_deadline) if raw_deadline is not None else None
+
+        raw_dependencies = item.get("dependencies") or []
+        dependency_titles = [str(dep).strip() for dep in raw_dependencies if str(dep).strip()]
+
+        try:
+            task = create_task(
+                title,
+                description,
+                expected_value=expected_value,
+                duration_hours=duration_hours,
+                deadline_timestamp=deadline_timestamp,
+                dependencies=[],
+            )
+        except ValueError as exc:
+            return f"Error: 创建任务 '{title}' 失败: {exc}"
+
+        title_to_task_id[_normalize_title(title)] = task.id
+        created_items.append((title, task.id, dependency_titles))
+
+    for title, task_id, dependency_titles in created_items:
+        mapped_dependencies: list[str] = []
+        for dep_title in dependency_titles:
+            dep_norm = _normalize_title(dep_title)
+            if dep_norm == _normalize_title(title):
+                return f"Error: 任务 '{title}' 依赖自身，拓扑结构不合法。"
+            dep_task_id = title_to_task_id.get(dep_norm)
+            if dep_task_id is None:
+                return f"Error: 任务 '{title}' 依赖了未知标题 '{dep_title}'。"
+            mapped_dependencies.append(dep_task_id)
+
+        if mapped_dependencies:
+            try:
+                update_task(task_id, dependencies=list(dict.fromkeys(mapped_dependencies)))
+            except ValueError as exc:
+                return f"Error: 构建依赖边失败（任务 '{title}'）: {exc}"
+
+    try:
+        task_store._sync_dag()
+    except ValueError as exc:
+        return f"Error: DAG 重建失败: {exc}"
+
+    summary_lines = [
+        "## Batch Task Triage Result",
+        "",
+        "已创建任务（title -> task_id）：",
+    ]
+    for title, task_id, _ in created_items:
+        summary_lines.append(f"- {title} -> #{task_id}")
+
+    summary_lines.extend([
+        "",
+        "优化后的今日最佳执行路径：",
+        _task_list(),
+    ])
+    return "\n".join(summary_lines)
+
+
 # ── Registration ───────────────────────────────────────────────────────────────
 
 def _register() -> None:
@@ -408,6 +543,13 @@ def _register() -> None:
             schema=_TASK_LIST_SCHEMA,
             func=lambda p, c: _task_list(),
             read_only=True,
+            concurrent_safe=True,
+        ),
+        ToolDef(
+            name="batch_analyze_and_schedule_tasks",
+            schema=_TASK_BATCH_ANALYZE_SCHEMA,
+            func=lambda p, c: _batch_analyze_and_schedule_tasks(p["tasks"]),
+            read_only=False,
             concurrent_safe=True,
         ),
     ]

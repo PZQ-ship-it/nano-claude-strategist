@@ -287,10 +287,55 @@ class TestTaskToolFunctions:
         assert row is not None
         assert "[BLOCKED]" not in row
 
+    def test_batch_analyze_and_schedule_tasks_title_to_id_mapping(self):
+        from task.tools import _batch_analyze_and_schedule_tasks
+
+        result = _batch_analyze_and_schedule_tasks([
+            {
+                "title": "查资料",
+                "description": "先收集背景材料",
+                "expected_value": 300,
+                "duration_hours": 1.5,
+                "deadline_timestamp": None,
+                "dependencies": [],
+            },
+            {
+                "title": "写报告",
+                "description": "形成初稿",
+                "expected_value": 600,
+                "duration_hours": 3.0,
+                "deadline_timestamp": None,
+                "dependencies": ["查资料"],
+            },
+        ])
+
+        assert "Batch Task Triage Result" in result
+        assert "查资料 -> #" in result
+        assert "写报告 -> #" in result
+
+        report_task = next(task for task in list_tasks() if task.subject == "写报告")
+        research_task = next(task for task in list_tasks() if task.subject == "查资料")
+        assert report_task.dependencies == [research_task.id]
+
+    def test_batch_analyze_and_schedule_tasks_unknown_dependency(self):
+        from task.tools import _batch_analyze_and_schedule_tasks
+
+        result = _batch_analyze_and_schedule_tasks([
+            {
+                "title": "写总结",
+                "description": "收尾",
+                "expected_value": 200,
+                "duration_hours": 1.0,
+                "deadline_timestamp": None,
+                "dependencies": ["不存在的前置"],
+            }
+        ])
+        assert "未知标题" in result
+
     def test_tool_schemas_registered(self):
         """All four task tools must be registered in tool_registry."""
         from tool_registry import get_tool
-        for name in ("TaskCreate", "TaskUpdate", "TaskGet", "TaskList"):
+        for name in ("TaskCreate", "TaskUpdate", "TaskGet", "TaskList", "batch_analyze_and_schedule_tasks"):
             assert get_tool(name) is not None, f"{name} not registered"
 
     def test_tool_schemas_in_tool_schemas_list(self):
@@ -300,5 +345,5 @@ class TestTaskToolFunctions:
         except TypeError as exc:
             pytest.skip(f"Skip on legacy interpreter incompatibility: {exc}")
         names = {s["name"] for s in TOOL_SCHEMAS}
-        for name in ("TaskCreate", "TaskUpdate", "TaskGet", "TaskList"):
+        for name in ("TaskCreate", "TaskUpdate", "TaskGet", "TaskList", "batch_analyze_and_schedule_tasks"):
             assert name in names, f"{name} missing from TOOL_SCHEMAS"
