@@ -240,6 +240,33 @@ TOOL_SCHEMAS = [
         },
     },
     {
+        "name": "evaluate_cooperation_synergy",
+        "description": (
+            "当面临多方合作、合资分成或收益分配谈判时，绝对禁止拍脑袋给比例。"
+            "你必须调用此工具，基于合作净价值与单干基线计算 Shapley 分配。"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "players": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "合作参与方名称列表，至少两方",
+                    "minItems": 2,
+                },
+                "standalone_values": {
+                    "type": "object",
+                    "description": "每个参与方单干可获得的价值",
+                    "additionalProperties": {"type": "number"},
+                },
+                "synergy_value": {"type": "number", "description": "合作产生的总价值（毛值）"},
+                "cooperation_cost": {"type": "number", "description": "合作实施总成本"},
+                "rationale": {"type": "string", "description": "协作背景与价值来源说明"},
+            },
+            "required": ["players", "standalone_values", "synergy_value", "cooperation_cost", "rationale"],
+        },
+    },
+    {
         "name": "NotebookEdit",
         "description": (
             "Edit a Jupyter notebook (.ipynb) cell. "
@@ -1108,6 +1135,6 @@ except Exception as _plugin_err:
 # task/tools.py registers all four tools into the central registry on import.
 import task.tools as _task_tools  # noqa: F401
 
-# ── Strategy tools (evaluate_strategic_options) ────────────────────────────────
-# skill/strategy/tools.py registers strategy decision tool on import.
+# ── Strategy tools (evaluate_strategic_options / evaluate_cooperation_synergy) ──
+# skill/strategy/tools.py registers both strategy tools on import.
 import skill.strategy.tools as _strategy_tools  # noqa: F401

@@ -2,8 +2,15 @@
   "tests/test_strategy_tool.py::TestStrategySchemas::()::test_pert_estimate_order_validation",
   "tests/test_strategy_tool.py::TestStrategySchemas::()::test_success_probability_range_validation",
   "tests/test_strategy_tool.py::TestStrategicTool::()::test_tool_registered",
+  "tests/test_strategy_tool.py::TestStrategicTool::()::test_cooperation_tool_registered",
   "tests/test_strategy_tool.py::TestStrategicTool::()::test_execute_returns_abort_message_when_human_rejects",
   "tests/test_strategy_tool.py::TestStrategicTool::()::test_execute_sorts_by_eu_desc_and_renders_markdown",
+  "tests/test_strategy_tool.py::TestStrategicTool::()::test_execute_adds_negative_ci_risk_warning",
+  "tests/test_strategy_tool.py::TestStrategicTool::()::test_execute_cooperation_synergy_renders_markdown",
   "tests/test_strategy_tool.py::TestStrategicTool::()::test_private_pert_mean_formula",
-  "tests/test_strategy_tool.py::test_strategy_test_environment_probe"
+  "tests/test_strategy_tool.py::test_strategy_test_environment_probe",
+  "tests/test_strategy_or_math.py::TestStrategyOrMath::()::test_monte_carlo_output_shape_and_order",
+  "tests/test_strategy_or_math.py::TestStrategyOrMath::()::test_shapley_efficiency_two_player_case",
+  "tests/test_strategy_or_math.py::TestStrategyOrMath::()::test_shapley_symmetry_identical_players",
+  "tests/test_strategy_or_math.py::test_or_math_test_environment_probe"
 ]

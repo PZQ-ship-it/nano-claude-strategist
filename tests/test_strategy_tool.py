@@ -12,7 +12,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - environment compatibili
 
 if HAS_PYDANTIC:
     from tool_registry import get_tool
-    from skill.strategy.schemas import DecisionContext, DecisionOption, PERTEstimate
+    from skill.strategy.schemas import CooperationContext, DecisionContext, DecisionOption, PERTEstimate
     import skill.strategy.tools as strategy_tools
 
 
@@ -41,6 +41,11 @@ class TestStrategicTool:
         tool = get_tool("evaluate_strategic_options")
         assert tool is not None
         assert tool.name == "evaluate_strategic_options"
+
+    def test_cooperation_tool_registered(self):
+        tool = get_tool("evaluate_cooperation_synergy")
+        assert tool is not None
+        assert tool.name == "evaluate_cooperation_synergy"
 
     def test_execute_returns_abort_message_when_human_rejects(self, monkeypatch):
         def _reject(_model_class, _initial_data):
@@ -78,11 +83,53 @@ class TestStrategicTool:
         result = strategy_tools.execute_strategic_options(**payload)
 
         assert result.startswith("## Strategic Option Evaluation")
-        assert "| Option | Rationale (Summary) | Success Mean | Revenue Mean | Cost | Expected Utility (EU) |" in result
+        assert "| Option | Rationale (Summary) | Success Mean | Revenue Mean | Cost | Expected Utility (EU) | 95% CI Lower | 95% CI Upper |" in result
+        assert "95% 置信区间下限" in result
 
         rows = [line for line in result.splitlines() if line.startswith("| ") and not line.startswith("| Option ") and not line.startswith("|---")]
         assert rows, result
         assert rows[0].startswith("| HighEU |"), result
+
+    def test_execute_adds_negative_ci_risk_warning(self, monkeypatch):
+        payload = {
+            "goal": "测试风险提示",
+            "options": [
+                {
+                    "option_name": "Risky",
+                    "success_prob": {"rationale": "小概率高收益", "min_val": 0.01, "mode_val": 0.05, "max_val": 0.15},
+                    "expected_revenue": {"rationale": "回报波动", "min_val": 100.0, "mode_val": 400.0, "max_val": 2000.0},
+                    "estimated_cost": 300.0,
+                }
+            ],
+        }
+
+        def _approve(_model_class, initial_data):
+            return DecisionContext.model_validate(initial_data)
+
+        monkeypatch.setattr(strategy_tools, "require_human_approval_via_tui", _approve)
+
+        result = strategy_tools.execute_strategic_options(**payload)
+        assert "风险提示" in result
+
+    def test_execute_cooperation_synergy_renders_markdown(self, monkeypatch):
+        payload = {
+            "players": ["甲方", "乙方"],
+            "standalone_values": {"甲方": 100.0, "乙方": 80.0},
+            "synergy_value": 260.0,
+            "cooperation_cost": 20.0,
+            "rationale": "甲方有渠道，乙方有技术。",
+        }
+
+        def _approve(_model_class, initial_data):
+            return CooperationContext.model_validate(initial_data)
+
+        monkeypatch.setattr(strategy_tools, "require_human_approval_via_tui", _approve)
+
+        result = strategy_tools.execute_cooperation_synergy(**payload)
+        assert result.startswith("## Cooperation Synergy Evaluation")
+        assert "| Participant | Standalone Baseline | Shapley Allocation | Allocation Ratio |" in result
+        assert "| 甲方 |" in result
+        assert "| 乙方 |" in result
 
     def test_private_pert_mean_formula(self):
         estimate = PERTEstimate(rationale="", min_val=1.0, mode_val=2.0, max_val=7.0)
