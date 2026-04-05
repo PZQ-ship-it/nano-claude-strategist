@@ -231,6 +231,19 @@ class TestTaskToolFunctions:
         assert "#1" in result
         assert "Write README" in result
 
+    def test_task_create_tool_deduplicates_same_pending_subject(self):
+        from task.tools import _task_create
+
+        first = _task_create("构思明天会议发言", "初稿")
+        second = _task_create("构思明天会议发言", "更新版")
+
+        assert "created" in first.lower()
+        assert "reused" in second.lower()
+
+        tasks = [task for task in list_tasks() if task.subject == "构思明天会议发言"]
+        assert len(tasks) == 1
+        assert tasks[0].description == "更新版"
+
     def test_task_update_tool_status(self):
         from task.tools import _task_create, _task_update
         _task_create("Fix lint", "Run ruff")
@@ -331,6 +344,27 @@ class TestTaskToolFunctions:
             }
         ])
         assert "未知标题" in result
+
+    def test_batch_analyze_reuses_existing_pending_subject(self):
+        from task.tools import _batch_analyze_and_schedule_tasks, _task_create
+
+        _task_create("拿快递", "旧描述")
+        before_count = len(list_tasks())
+
+        result = _batch_analyze_and_schedule_tasks([
+            {
+                "title": "拿快递",
+                "description": "新描述",
+                "expected_value": 60,
+                "duration_hours": 0.5,
+                "deadline_timestamp": None,
+                "dependencies": [],
+            }
+        ])
+
+        after_count = len(list_tasks())
+        assert after_count == before_count
+        assert "(reused)" in result
 
     def test_tool_schemas_registered(self):
         """All four task tools must be registered in tool_registry."""

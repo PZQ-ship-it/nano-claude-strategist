@@ -225,6 +225,70 @@ _TASK_BATCH_ANALYZE_SCHEMA = {
 
 # ── Implementations ────────────────────────────────────────────────────────────
 
+def _normalize_subject(subject: str) -> str:
+    return " ".join(str(subject).strip().split()).lower()
+
+
+def _find_active_task_by_subject(subject: str):
+    normalized = _normalize_subject(subject)
+    if not normalized:
+        return None
+
+    candidates = [
+        task for task in list_tasks()
+        if task.status in (TaskStatus.PENDING, TaskStatus.IN_PROGRESS)
+        and _normalize_subject(task.subject) == normalized
+    ]
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda task: int(task.id) if task.id.isdigit() else 10**9)
+    return candidates[0]
+
+
+def _create_or_reuse_task(
+    subject: str,
+    description: str,
+    active_form: str = "",
+    metadata: dict[str, Any] | None = None,
+    expected_value: float = 100.0,
+    p_success: float = 1.0,
+    duration_hours: float = 1.0,
+    sunk_cost_hours: float = 0.0,
+    deadline_timestamp: float | None = None,
+    dependencies: list[str] | None = None,
+):
+    existing = _find_active_task_by_subject(subject)
+    if existing is None:
+        task = create_task(
+            subject,
+            description,
+            active_form=active_form,
+            metadata=metadata,
+            expected_value=expected_value,
+            p_success=p_success,
+            duration_hours=duration_hours,
+            sunk_cost_hours=sunk_cost_hours,
+            deadline_timestamp=deadline_timestamp,
+            dependencies=dependencies,
+        )
+        return task, True
+
+    update_task(
+        existing.id,
+        description=description,
+        active_form=active_form if active_form else None,
+        expected_value=expected_value,
+        p_success=p_success,
+        duration_hours=duration_hours,
+        sunk_cost_hours=sunk_cost_hours,
+        deadline_timestamp=deadline_timestamp,
+        dependencies=dependencies,
+        metadata=metadata if metadata is not None else None,
+    )
+    refreshed = get_task(existing.id)
+    return (refreshed or existing), False
+
 def _task_create(
     subject: str,
     description: str,
@@ -238,7 +302,7 @@ def _task_create(
     dependencies: list[str] | None = None,
 ) -> str:
     try:
-        task = create_task(
+        task, created = _create_or_reuse_task(
             subject,
             description,
             active_form=active_form,
@@ -252,6 +316,8 @@ def _task_create(
         )
     except ValueError as exc:
         return f"Error: {exc}"
+    if not created:
+        return f"Task #{task.id} reused (deduplicated): {task.subject}"
     return f"Task #{task.id} created: {task.subject}"
 
 
@@ -418,7 +484,7 @@ def _batch_analyze_and_schedule_tasks(tasks: list[dict[str, Any]]) -> str:
         dup = ", ".join(duplicate_titles)
         return f"Error: 检测到重复 title（忽略大小写与多空格）：{dup}"
 
-    created_items: list[tuple[str, str, list[str]]] = []
+    created_items: list[tuple[str, str, list[str], bool]] = []
     title_to_task_id: dict[str, str] = {}
 
     for item in tasks:
@@ -434,7 +500,7 @@ def _batch_analyze_and_schedule_tasks(tasks: list[dict[str, Any]]) -> str:
         dependency_titles = [str(dep).strip() for dep in raw_dependencies if str(dep).strip()]
 
         try:
-            task = create_task(
+            task, created = _create_or_reuse_task(
                 title,
                 description,
                 expected_value=expected_value,
@@ -446,9 +512,9 @@ def _batch_analyze_and_schedule_tasks(tasks: list[dict[str, Any]]) -> str:
             return f"Error: 创建任务 '{title}' 失败: {exc}"
 
         title_to_task_id[_normalize_title(title)] = task.id
-        created_items.append((title, task.id, dependency_titles))
+        created_items.append((title, task.id, dependency_titles, created))
 
-    for title, task_id, dependency_titles in created_items:
+    for title, task_id, dependency_titles, _ in created_items:
         mapped_dependencies: list[str] = []
         for dep_title in dependency_titles:
             dep_norm = _normalize_title(dep_title)
@@ -473,10 +539,11 @@ def _batch_analyze_and_schedule_tasks(tasks: list[dict[str, Any]]) -> str:
     summary_lines = [
         "## Batch Task Triage Result",
         "",
-        "已创建任务（title -> task_id）：",
+        "已写入任务（title -> task_id）：",
     ]
-    for title, task_id, _ in created_items:
-        summary_lines.append(f"- {title} -> #{task_id}")
+    for title, task_id, _, created in created_items:
+        action = "created" if created else "reused"
+        summary_lines.append(f"- {title} -> #{task_id} ({action})")
 
     summary_lines.extend([
         "",
