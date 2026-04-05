@@ -1,6 +1,8 @@
 """Pydantic schemas for strategic option evaluation (PERT)."""
 from __future__ import annotations
 
+from typing import Dict, List
+
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -50,12 +52,12 @@ class DecisionOption(BaseModel):
 
 class DecisionContext(BaseModel):
     goal: str = Field(description="决策目标")
-    options: list[DecisionOption]
+    options: List[DecisionOption]
 
 
 class CooperationContext(BaseModel):
-    players: list[str] = Field(description="合作参与方名称列表，至少两方")
-    standalone_values: dict[str, float] = Field(
+    players: List[str] = Field(description="合作参与方名称列表，至少两方")
+    standalone_values: Dict[str, float] = Field(
         description="每个参与方单干可获得的价值（通用效用点数，UP）"
     )
     synergy_value: float = Field(

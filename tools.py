@@ -1,4 +1,6 @@
 """Tool definitions and implementations for nano claude."""
+from __future__ import annotations
+
 import json
 import os
 import re
