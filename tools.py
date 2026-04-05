@@ -195,6 +195,51 @@ TOOL_SCHEMAS = [
         },
     },
     {
+        "name": "evaluate_strategic_options",
+        "description": (
+            "当面临多方案评估、战略取舍或商业预测请求时，绝对禁止直接给出武断结论。"
+            "你必须调用此工具。运用费米估算法将现实情况拆解为包含上下界的三点估算。"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "goal": {"type": "string", "description": "决策目标"},
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "option_name": {"type": "string"},
+                            "success_prob": {
+                                "type": "object",
+                                "properties": {
+                                    "rationale": {"type": "string"},
+                                    "min_val": {"type": "number"},
+                                    "mode_val": {"type": "number"},
+                                    "max_val": {"type": "number"},
+                                },
+                                "required": ["rationale", "min_val", "mode_val", "max_val"],
+                            },
+                            "expected_revenue": {
+                                "type": "object",
+                                "properties": {
+                                    "rationale": {"type": "string"},
+                                    "min_val": {"type": "number"},
+                                    "mode_val": {"type": "number"},
+                                    "max_val": {"type": "number"},
+                                },
+                                "required": ["rationale", "min_val", "mode_val", "max_val"],
+                            },
+                            "estimated_cost": {"type": "number"},
+                        },
+                        "required": ["option_name", "success_prob", "expected_revenue", "estimated_cost"],
+                    },
+                },
+            },
+            "required": ["goal", "options"],
+        },
+    },
+    {
         "name": "NotebookEdit",
         "description": (
             "Edit a Jupyter notebook (.ipynb) cell. "
@@ -1062,3 +1107,7 @@ except Exception as _plugin_err:
 # ── Task tools (TaskCreate, TaskUpdate, TaskGet, TaskList) ─────────────────────
 # task/tools.py registers all four tools into the central registry on import.
 import task.tools as _task_tools  # noqa: F401
+
+# ── Strategy tools (evaluate_strategic_options) ────────────────────────────────
+# skill/strategy/tools.py registers strategy decision tool on import.
+import skill.strategy.tools as _strategy_tools  # noqa: F401
