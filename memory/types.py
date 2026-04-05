@@ -5,6 +5,8 @@ Code patterns, architecture, git history, and file structure are derivable
 (via grep/git/CLAUDE.md) and should NOT be saved as memories.
 """
 
+from __future__ import annotations
+
 MEMORY_TYPES = ["user", "feedback", "project", "reference"]
 
 # Condensed per-type guidance (used in system prompt injection)
